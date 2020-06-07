@@ -8,7 +8,7 @@ identifier  [CONSTANT]  datatype  [NOT NULL] [:= | DEFAULT expr];
 */
 
 -- Ejemplos
-
+SET SERVEROUTPUT ON;
 DECLARE 
   v_myname  varchar(20);
   v_mycity  varchar(20) := 'San Martin';
@@ -77,7 +77,7 @@ Resultado:
 */
 
 -- Ejemplo de variables Bind o enlazadas
-
+--variable bind
 VARIABLE b_emp_salary NUMBER;
 
 BEGIN
@@ -117,7 +117,7 @@ BEGIN
   FROM employees
   WHERE employee_id = v_empno;
 END;
-
+/
 /*
   Antiguo:DECLARE
   v_empno NUMBER(6) := &empno;
