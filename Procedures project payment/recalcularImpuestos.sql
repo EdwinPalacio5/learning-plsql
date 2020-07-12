@@ -1,7 +1,11 @@
-SET SERVEROUTPUT ON;
-
--- Funcion que permite recalcular impuestos
-CREATE OR REPLACE PROCEDURE recalcular_impuestos(p_id_planilla  planillas.id_planilla%TYPE, p_periodicidad anios_laborales.periodicidad%TYPE) 
+/* Procedimiento que permite recalcular isss, afp y renta de una planilla
+ * @parametro: p_id_planilla
+ * @parametro: p_periodicidad. 15 si es quincenal, 30 si es mensual
+ * Realizado por: Edwin Palacios
+ * Fecha de creación 27/06/2020
+ * Ultima modificación: 27/06/2020
+ * */
+CREATE OR REPLACE PROCEDURE RECALCULAR_IMPUESTOS(p_id_planilla  planillas.id_planilla%TYPE, p_periodicidad anios_laborales.periodicidad%TYPE) 
     IS
     -- cursor de impuestos
     CURSOR cur_impuestos 
@@ -13,7 +17,8 @@ CREATE OR REPLACE PROCEDURE recalcular_impuestos(p_id_planilla  planillas.id_pla
             JOIN tipos_movimiento tm ON (pm.id_movimiento = tm.id_movimiento)
         WHERE (tm.tipo_movimiento_habilitado = 1 
                 AND tm.es_descuento = 1 
-                AND tm.movimiento IN ('ISSS', 'ISSS PATRONAL', 'AFP', 'AFP PATRONAL')); 
+                AND tm.id_movimiento IN (500,501,502,503)
+                AND p.id_planilla = p_id_planilla); 
     
     -- declaracion de variables
     v_planilla_empleado     planillas%ROWTYPE;  
@@ -55,14 +60,14 @@ BEGIN
         FOR rec_impuestos IN cur_impuestos(p_id_planilla)
         LOOP
             IF v_salario_devengado > rec_impuestos.monto_maximo THEN
-                IF rec_impuestos.movimiento IN ('ISSS', 'AFP') THEN
+                IF rec_impuestos.id_movimiento IN (500,502) THEN
                     v_impuesto_isss_afp := v_impuesto_isss_afp + ((rec_impuestos.monto_maximo*rec_impuestos.porcentaje_movimiento)/100);
                 END IF;
                 UPDATE planilla_movimientos 
                 SET monto_movimiento = ((rec_impuestos.monto_maximo*rec_impuestos.porcentaje_movimiento)/100)
                 WHERE id_planilla_movimiento = rec_impuestos.id_planilla_movimiento;
             ELSE
-                IF rec_impuestos.movimiento IN ('ISSS', 'AFP') THEN
+                IF rec_impuestos.id_movimiento IN (500,502) THEN
                     v_impuesto_isss_afp := v_impuesto_isss_afp + ((v_salario_devengado*rec_impuestos.porcentaje_movimiento)/100);
                 END IF;
                 UPDATE planilla_movimientos 
@@ -78,36 +83,5 @@ BEGIN
         WHERE id_planilla = p_id_planilla;
         
     END IF;
+    --COMMIT;
 END;
-/  
-
--- Funcion que permite calcular la renta
-CREATE OR REPLACE FUNCTION calcular_renta(p_monto  planillas.renta%TYPE, p_periodicidad anios_laborales.periodicidad%TYPE)
-    RETURN  empleados.salario_base_mensual%TYPE
-    IS
-    -- cursor de rangos
-    CURSOR cur_rangos_renta 
-        (p_periodicidad anios_laborales.periodicidad%TYPE)  
-        IS 
-        SELECT *
-        FROM rangos_renta
-        WHERE (periodicidad_renta = p_periodicidad); 
-    -- variables
-    v_renta     planillas.renta%TYPE := 0;
-BEGIN
-    FOR rec_rangos_renta IN cur_rangos_renta(p_periodicidad) 
-    LOOP
-        IF p_monto >= rec_rangos_renta.salario_min AND p_monto <= rec_rangos_renta.salario_max THEN
-           v_renta :=  (p_monto - rec_rangos_renta.exceso)*(rec_rangos_renta.porcentaje_renta/100) + rec_rangos_renta.cuota_fija;    
-        END IF;
-    END LOOP;
-    return v_renta;
-END;
-/  
-
-Declare
-    v_monto number;
-Begin
-    v_monto := calcular_renta(907.50,30);
-    DBMS_OUTPUT.PUT_LINE(v_monto);
-End;

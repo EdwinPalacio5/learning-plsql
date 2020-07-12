@@ -1,4 +1,10 @@
-SET SERVEROUTPUT ON;
+/* Procedimiento para realizar el pago de planilla
+ * @parametro: id de la unidad a pagar planilla (Parametro de entrada)
+ * @parametro: mensaje que indica el resultado de la ejecución del procedimiento (Parametro de salida)
+ * Realizado por: Edwin Palacios
+ * Fecha de creación 18/06/2020
+ * Ultima modificación: 29/06/2020
+ * */
 
 CREATE OR REPLACE PROCEDURE PAGO_PLANILLA
     (p_id_unidad IN NUMBER, p_message OUT varchar2) -- parametros
@@ -11,7 +17,8 @@ CREATE OR REPLACE PROCEDURE PAGO_PLANILLA
         JOIN empleados_puestos_unidades epu ON (u.id_unidad_organizacional = epu.id_unidad_organizacional)
         JOIN empleados e ON (epu.id_empleado=e.id_empleado)
         JOIN planillas p ON (e.id_empleado=p.id_empleado)
-        WHERE (u.id_unidad_organizacional= p_id_unidad AND e.empleado_habilitado = 1 AND epu.fecha_fin IS NULL);      
+        JOIN periodos  pe ON (p.id_periodo = pe.id_periodo)
+        WHERE (u.id_unidad_organizacional= p_id_unidad AND e.empleado_habilitado = 1 AND epu.fecha_fin IS NULL AND pe.activo = 1 AND p.fecha_emision IS NULL);
     
     -- declaracion de variables
     
@@ -26,7 +33,7 @@ CREATE OR REPLACE PROCEDURE PAGO_PLANILLA
     v_plan_ingreso          empleados.salario_base_mensual%type := 0; -- monto de plan de ingreso (si cuenta con uno)
     v_plan_descuento        empleados.salario_base_mensual%type := 0; -- monto de plan descuento (si cuenta con uno)
     v_salario_devengado     empleados.salario_base_mensual%type := 0; -- salario base + ingresos(ingresos comunes, horas extra, comision, dias festivos, plan de ingreso, etc)
-    v_aportacion_patronal   empleados.salario_base_mensual%type := 0; -- sumatorioa de isss patronal, afp patronal y otros movimientos patronales  
+    v_aportacion_patronal   empleados.salario_base_mensual%type := 0; -- sumatoria de isss patronal, afp patronal y otros movimientos patronales  
     v_descuentos_empleado   empleados.salario_base_mensual%type := 0; -- sumatoria de isss + afp + renta + plan de descuentos + otros descuentos  
     v_valor_neto_a_pagar    empleados.salario_base_mensual%type := 0; -- salario devengado - descuentos de empleado
     
@@ -43,7 +50,7 @@ BEGIN
     -- Si existe periodo
     IF (SQL%ROWCOUNT > 0) THEN
         -- Obtenemos el presupuesto actual de la unidad y la periodicidad 
-        SELECT (c.presupuesto_anterior + c.presupuesto_asignado - c.presupuesto_devengado) as "presupuesto_actual", a.periodicidad, c.id_centro_costo
+        SELECT (c.presupuesto_asignado - c.presupuesto_devengado) as "presupuesto_actual", a.periodicidad, c.id_centro_costo
         INTO v_presupuesto_unidad, v_periodicidad, v_id_centro_costo
         FROM unidades_organizacionales u
             JOIN centros_costos c ON (u.id_unidad_organizacional = c.id_unidad_organizacional)
@@ -77,49 +84,29 @@ BEGIN
             Where pm.id_planilla = rec_planilla.id_planilla AND tm.es_patronal = 1;                        
             
             v_descuentos_empleado := rec_planilla.renta 
-                                    + (rec_planilla.total_descuentos); -- Obs - v_aportacion_patronal
+                                    + rec_planilla.total_descuentos
+                                    + v_plan_descuento;
             
             v_valor_neto_a_pagar := v_salario_devengado - v_descuentos_empleado; 
                                    
             v_total_pago_planilla := v_total_pago_planilla 
-                                    + v_valor_neto_a_pagar
+                                    + v_salario_devengado
                                     + v_aportacion_patronal;
                                     
             -- actualizamos la planilla del empleado
             UPDATE planillas SET fecha_emision = SYSDATE, salario_neto = v_valor_neto_a_pagar
-            WHERE id_planilla = rec_planilla.id_planilla;
-                                    
-            DBMS_OUTPUT.PUT_LINE(rec_planilla.id_planilla 
-                             || ' ' 
-                             ||rec_planilla.salario_neto
-                             || ' Periodicidad: ' 
-                             || v_periodicidad
-                             || ' Presupuesto: ' 
-                             || v_presupuesto_unidad
-                             || ' Salario base: ' 
-                             || v_salario_base
-                             || ' Salario devengado: ' 
-                             || v_salario_devengado
-                             || ' Salario neto: ' 
-                             || v_valor_neto_a_pagar
-                             || ' Patronal: ' 
-                             || v_aportacion_patronal
-                             || ' Patronal: ' 
-                             || v_descuentos_empleado
-                             || ' Total pago Planilla: ' 
-                             || v_total_pago_planilla
-                             );   
+            WHERE id_planilla = rec_planilla.id_planilla;  
                              
             -- Si el presupuesto no es suficiente se sale del ciclo
-            EXIT WHEN (v_total_pago_planilla > v_presupuesto_unidad);
+            -- EXIT WHEN (v_total_pago_planilla > v_presupuesto_unidad);
         END LOOP;
 
          -- Despues de recorrer todas las planillas se valida si el presupuesto fue suficiente para pagar planilla
         IF (v_total_pago_planilla > v_presupuesto_unidad) THEN
-            p_message := 'El presupuesto no es suficiente. El presupuesto actual es de $'
-                         || v_presupuesto_unidad 
-                         || ' y el pago requerido consta de $'
-                         || v_total_pago_planilla;
+            p_message := 'Presupuesto no suficiente. El presupuesto actual es de '
+                         || to_char(v_presupuesto_unidad,'$99,999.99') 
+                         || ' y el pago requerido es de '
+                         || to_char(v_total_pago_planilla,'$99,999.99'); 
             ROLLBACK;
         ELSE
             -- actualizamos el centro de costo de la planilla
@@ -145,10 +132,10 @@ BEGIN
                 WHERE id_periodo = (v_periodos_rec.id_periodo + 1);
             END IF;
             
-            p_message := 'El pago de la planilla se ha realizado de manera exitosa. El presupuesto actual es de $'
-                         || (v_presupuesto_unidad - v_total_pago_planilla)
-                         || ' El cobro realizado fue de $'
-                         || v_total_pago_planilla;
+            p_message := 'Pago realizado de manera exitosa. El presupuesto actual es de '
+                         || to_char((v_presupuesto_unidad - v_total_pago_planilla),'$99,999.99')
+                         || ' El cobro realizado fue de '
+                         || to_char(v_total_pago_planilla,'$99,999.99');
                          
             COMMIT;
         END IF;
@@ -156,12 +143,3 @@ BEGIN
         p_message := 'No existe un periodo activo. Por favor revisar';
     END IF;
 END;
-/
-
-Declare
-    v_var varchar2(250);
-Begin
-    pago_planilla(500,v_var);
-    DBMS_OUTPUT.PUT_LINE(v_var);
-End;
-
