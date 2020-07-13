@@ -56,7 +56,7 @@ Hay dos tipos de cursores: implícitos y explícitos.
 */
 
 -- Ejemplo de ROWCOUNT
-
+SET SERVEROUTPUT ON;
 Declare 
     v_disminucion_salario    employees.salary%type := 800;
 Begin

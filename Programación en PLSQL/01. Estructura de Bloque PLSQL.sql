@@ -49,7 +49,7 @@ Función
 
 -- Ejemplo Bloque Anonimo:
 
--- Para habilitar la salida en SQL Developer
+-- [IMPORTANTE] Para habilitar la salida en SQL Developer
 SET SERVEROUTPUT ON;
 
 DECLARE

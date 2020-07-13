@@ -33,7 +33,7 @@ END;
 /
 
 -- Sentencias Case
-
+-- Selecciona un resultado y lo devuelve
 -- Sintaxis
 
 /*
@@ -61,7 +61,8 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('Valoracion obtenida mediante sentencia CASE: ' || v_valoracion);
 END;
 /
--- o bien mediante expresiones, la cual ofrece una mejor libertad
+
+-- o bien mediante expresiones CASE de busqueda, la cual ofrece una mejor libertad
 
 DECLARE
    v_nota   number(9,2) := 7.5;

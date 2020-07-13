@@ -40,10 +40,11 @@ Resultado:
   - Compuestos: 
     - Colecciones, 
     - Registro
-
 - Variables No-PL/SQL: 
   - Bind variables (enlazadas) o lenguaje principal
   
+  
+  Convenciones de PL/SQL
 
 |   Estructura PL/SQL                 |   Convención      |    Ejemplo        |
 |   ---                               |   ---             |     ---           |

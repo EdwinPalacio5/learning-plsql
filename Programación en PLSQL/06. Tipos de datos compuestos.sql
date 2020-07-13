@@ -17,7 +17,7 @@ BEGIN
     -- ejemplo de como se puede manipular los elementos del registro
     v_myrec.v_sal := v_myrec.v_minsal + 500;
     
-    -- ejemplo de como objetener una fila completa
+    -- ejemplo de como obtener una fila completa
     SELECT * INTO v_myrec.v_rec1
     FROM employees
     WHERE employee_id = 100;
@@ -99,6 +99,15 @@ BEGIN
     END LOOP;
 END;
 /
+
+/*
+Resultados:
+Scrum
+XP
+Kanba
+
+Procedimiento PL/SQL terminado correctamente.
+*/
 -- VARRAY en SQL
 
 Create or replace TYPE emp_array AS VARRAY(100) OF VARCHAR2(30);
@@ -115,3 +124,10 @@ Describe emp_array;
 */
 -- teniendo este VARRAY se puede utilizar como cualquier tipo de dato en ORACLE
 
+-- Consulta de VARRAY en SQL
+
+Select name 
+From club
+Where 'Gen' IN (SELECT * From table(club.members));
+
+-- Donde members es un campo en la tabla club de tipo VARRAY
